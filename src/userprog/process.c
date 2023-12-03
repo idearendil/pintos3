@@ -157,7 +157,7 @@ process_exit (void)
   struct fd_elem *f_e;
   struct list_elem *e;
 
-  for (i = 0; i < cur->mapid; i++)
+  for (int i = 0; i < cur->mapid; i++)
     sys_munmap (i);
   
   destroy_spt (&cur->spt);

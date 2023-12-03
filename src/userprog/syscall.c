@@ -8,6 +8,7 @@
 #include "userprog/process.h"
 #include "threads/malloc.h"
 #include "threads/vaddr.h"
+#include "vm/page.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -32,7 +33,7 @@ static void (*syscall_table[20])(struct intr_frame*) = {
   sys_tell,
   sys_close,
   sys_mmap,
-  sys_munmap
+  temp_sys_munmap
 }; // syscall jmp table
 
 /* Reads a byte at user virtual address UADDR.
@@ -423,23 +424,36 @@ void sys_close (struct intr_frame * f) {
   }
 }
 
-int 
-sys_mmap (struct intr_frame* f)
+void 
+sys_mmap (struct intr_frame* fr)
 {
-  if(!validate_read(f->esp + 4, 8)) kill_process();
+  if(!validate_read(fr->esp + 4, 8)) kill_process();
 
-  int fd = *(int*)(f->esp + 4);
-  void *addr = *(void**)(f->esp + 8);
+  int fd = *(int*)(fr->esp + 4);
+  void *addr = *(void**)(fr->esp + 8);
   struct thread *t = thread_current ();
-  struct file *f = t->pcb->fd_table[fd];
+  struct file *f = NULL;
+  struct list_elem *e;
+  struct fd_elem *fd_elem;
+  for (e = list_begin (&t->fd_table); e != list_end (&t->fd_table);
+       e = list_next (e))
+  {
+    fd_elem = list_entry (e, struct fd_elem, elem);
+    if(fd_elem->fd == fd)
+      f = fd_elem->file_ptr;
+  }
   struct file *opened_f;
   struct mmf *mmf;
 
-  if (f == NULL)
-    return -1;
+  if (f == NULL)  {
+    fr->eax = -1;
+    return;
+  }
   
-  if (addr == NULL || (int) addr % PGSIZE != 0)
-    return -1;
+  if (addr == NULL || (int) addr % PGSIZE != 0) {
+    fr->eax = -1;
+    return;
+  }
 
   lock_acquire (&file_lock);
 
@@ -447,27 +461,30 @@ sys_mmap (struct intr_frame* f)
   if (opened_f == NULL)
   {
     lock_release (&file_lock);
-    return -1;
+    fr->eax = -1;
+    return;
   }
 
   mmf = init_mmf (t->mapid++, opened_f, addr);
   if (mmf == NULL)
   {
     lock_release (&file_lock);
-    return -1;
+    fr->eax = -1;
+    return;
   }
 
   lock_release (&file_lock);
 
-  return mmf->id;
+  fr->eax = mmf->id;
+  return;
 }
 
-int temp_sys_munmap(struct intr_frame* f) {
+void temp_sys_munmap(struct intr_frame* f) {
   if(!validate_read(f->esp + 4, 4)) kill_process();
-  return sys_munmap(*(int*)(f->esp + 4));
+  sys_munmap(*(int*)(f->esp + 4));
 }
 
-int 
+void 
 sys_munmap (int mapid)
 {
   struct thread *t = thread_current ();

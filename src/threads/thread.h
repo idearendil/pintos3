@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include <hash.h>
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -23,20 +24,6 @@ typedef int tid_t;
 #define PRI_MIN 0                       /* Lowest priority. */
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
-
-struct pcb
-  {
-    int exit_code;
-    bool is_exited;
-    bool is_loaded;
-
-    struct file **fd_table;
-    int fd_count;
-    struct file *file_ex;
-
-    struct semaphore sema_wait;
-    struct semaphore sema_load;
-  };
 
 struct mmf 
   {
