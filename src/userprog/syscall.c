@@ -30,7 +30,9 @@ static void (*syscall_table[20])(struct intr_frame*) = {
   sys_write,
   sys_seek,
   sys_tell,
-  sys_close
+  sys_close,
+  sys_mmap,
+  sys_munmap
 }; // syscall jmp table
 
 /* Reads a byte at user virtual address UADDR.
@@ -420,3 +422,89 @@ void sys_close (struct intr_frame * f) {
     }
   }
 }
+
+int 
+sys_mmap (struct intr_frame* f)
+{
+  if(!validate_read(f->esp + 4, 8)) kill_process();
+
+  int fd = *(int*)(f->esp + 4);
+  void *addr = *(void**)(f->esp + 8);
+  struct thread *t = thread_current ();
+  struct file *f = t->pcb->fd_table[fd];
+  struct file *opened_f;
+  struct mmf *mmf;
+
+  if (f == NULL)
+    return -1;
+  
+  if (addr == NULL || (int) addr % PGSIZE != 0)
+    return -1;
+
+  lock_acquire (&file_lock);
+
+  opened_f = file_reopen (f);
+  if (opened_f == NULL)
+  {
+    lock_release (&file_lock);
+    return -1;
+  }
+
+  mmf = init_mmf (t->mapid++, opened_f, addr);
+  if (mmf == NULL)
+  {
+    lock_release (&file_lock);
+    return -1;
+  }
+
+  lock_release (&file_lock);
+
+  return mmf->id;
+}
+
+int temp_sys_munmap(struct intr_frame* f) {
+  if(!validate_read(f->esp + 4, 4)) kill_process();
+  return sys_munmap(*(int*)(f->esp + 4));
+}
+
+int 
+sys_munmap (int mapid)
+{
+  struct thread *t = thread_current ();
+  struct list_elem *e;
+  struct mmf *mmf;
+  void *upage;
+
+  if (mapid >= t->mapid)
+    return;
+
+  for (e = list_begin (&t->mmf_list); e != list_end (&t->mmf_list); e = list_next (e))
+  {
+    mmf = list_entry (e, struct mmf, mmf_list_elem);
+    if (mmf->id == mapid)
+      break;
+  }
+  if (e == list_end (&t->mmf_list))
+    return;
+
+  upage = mmf->upage;
+
+  lock_acquire (&file_lock);
+  
+  off_t ofs;
+  for (ofs = 0; ofs < file_length (mmf->file); ofs += PGSIZE)
+  {
+    struct spte *entry = get_spte (&t->spt, upage);
+    if (pagedir_is_dirty (t->pagedir, upage))
+    {
+      void *kpage = pagedir_get_page (t->pagedir, upage);
+      file_write_at (entry->file, kpage, entry->read_bytes, entry->ofs);
+    }
+    page_delete (&t->spt, entry);
+    upage += PGSIZE;
+  }
+  list_remove(e);
+
+  lock_release (&file_lock);
+}
+

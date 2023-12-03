@@ -127,6 +127,9 @@ main (void)
   filesys_init (format_filesys);
 #endif
 
+  init_swap_valid_table ();
+  frame_init ();
+
   printf ("Boot complete.\n");
   
   /* Run actions specified on kernel command line. */
