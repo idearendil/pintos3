@@ -2,12 +2,9 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include "userprog/gdt.h"
-#include "userprog/signal.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
-#include "vm/page.h"
-#include "vm/swap.h"
-#include "threads/palloc.h"
+#include "threads/vaddr.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -75,10 +72,6 @@ exception_print_stats (void)
 static void
 kill (struct intr_frame *f) 
 {
-  /* Send signal to its parent that he's killed */
-  send_signal(-1, SIG_WAIT);
-  printf ("%s: exit(%d)\n", thread_current()->name, -1);
-  
   /* This interrupt is one (probably) caused by a user process.
      For example, the process might have tried to access unmapped
      virtual memory (a page fault).  For now, we simply kill the
@@ -135,13 +128,6 @@ page_fault (struct intr_frame *f)
   bool user;         /* True: access by user, false: access by kernel. */
   void *fault_addr;  /* Fault address. */
 
-  void *upage;
-  void *esp;
-  struct hash *spt;
-  struct spte *spe;
-  
-  void *kpage;
-  
   /* Obtain faulting address, the virtual address that was
      accessed to cause the fault.  It may point to code or to
      data.  It is not necessarily the address of the instruction
@@ -163,27 +149,12 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  upage = pg_round_down (fault_addr);
-
-  if (is_kernel_vaddr (fault_addr) || !not_present) 
-    sys_exit (-1);
-
-  spt = &thread_current()->spt;
-  spe = get_spte(spt, upage);
-  
-  esp = user ? f->esp : thread_current()->esp;
-  if (esp - 32 <= fault_addr && PHYS_BASE - MAX_STACK_SIZE <= fault_addr) {
-    if (!get_spte(spt, upage)) {
-      init_zero_spte (spt, upage);
-    }
+   //for syscall
+  if (!user || is_kernel_vaddr (fault_addr) || not_present)
+  {
+     exit(-1);
   }
 
-  if (load_page (spt, upage)) {
-     return;
-  }
-
-  sys_exit (-1);
-  
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
      which fault_addr refers. */
@@ -192,7 +163,6 @@ page_fault (struct intr_frame *f)
           not_present ? "not present" : "rights violation",
           write ? "writing" : "reading",
           user ? "user" : "kernel");
-  
   kill (f);
 }
 

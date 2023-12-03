@@ -4,7 +4,8 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
-#include <hash.h>
+#include "threads/synch.h"
+#include "filesys/file.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -24,15 +25,6 @@ typedef int tid_t;
 #define PRI_MIN 0                       /* Lowest priority. */
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
-
-struct mmf 
-  {
-    int id;
-    struct file* file;
-    struct list_elem mmf_list_elem;
-    
-    void *upage;
-  };
 
 /* A kernel thread or user process.
 
@@ -106,22 +98,18 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+    
+    struct thread *parent;              /* Parent thread. */
+    struct list children;               
+    struct list_elem children_elem; 
 
-    struct list_elem p_elem;            /* List element for process child-parent relationship */
-    struct thread *parent;
-    struct list child_list;
+    struct semaphore child_sema;
+    struct semaphore memory_sema;
+    struct semaphore load_thr;
 
-    struct list signal_list;
-    struct list fd_table;
-
-    struct file *current_file;
+    int exit_status;
+    struct file *fd_list[128];
 #endif
-
-    struct hash spt;
-    void *esp;
-
-    struct list mmf_list;
-    int mapid;
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
@@ -162,7 +150,5 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
-
-struct thread* get_thread_from_tid(tid_t tid);
 
 #endif /* threads/thread.h */

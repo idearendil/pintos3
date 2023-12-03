@@ -13,10 +13,7 @@
 #include "threads/vaddr.h"
 #ifdef USERPROG
 #include "userprog/process.h"
-#include "userprog/signal.h"
 #endif
-#include "filesys/file.h"
-#include "vm/page.h"
 
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
@@ -38,7 +35,13 @@ static struct thread *idle_thread;
 static struct thread *initial_thread;
 
 /* Lock used by allocate_tid(). */
-static struct lock tid_lock;
+struct lock tid_lock;
+
+/*
+#ifdef USERPROG
+struct lock file_lock; // MYCODE
+#endif
+*/
 
 /* Stack frame for kernel_thread(). */
 struct kernel_thread_frame 
@@ -92,8 +95,6 @@ thread_init (void)
 {
   ASSERT (intr_get_level () == INTR_OFF);
 
-  signal_init();
-
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
@@ -128,7 +129,7 @@ void
 thread_tick (void) 
 {
   struct thread *t = thread_current ();
-  
+
   /* Update statistics. */
   if (t == idle_thread)
     idle_ticks++;
@@ -172,7 +173,6 @@ thread_create (const char *name, int priority,
                thread_func *function, void *aux) 
 {
   struct thread *t;
-  struct thread *cur = thread_current();
   struct kernel_thread_frame *kf;
   struct switch_entry_frame *ef;
   struct switch_threads_frame *sf;
@@ -188,10 +188,6 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
-  
-  /* Set parent-child relationship */
-  t->parent = cur;
-  list_push_back(&cur->child_list, &t->p_elem);
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -207,11 +203,6 @@ thread_create (const char *name, int priority,
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
   sf->ebp = 0;
-
-  init_spt (&t->spt);
-
-  list_init (&t->mmf_list);
-  t->mapid = 0;
 
   /* Add to run queue. */
   thread_unblock (t);
@@ -293,9 +284,8 @@ thread_tid (void)
 /* Deschedules the current thread and destroys it.  Never
    returns to the caller. */
 void
-thread_exit () 
+thread_exit (void) 
 {
-  struct thread *cur = thread_current();
   ASSERT (!intr_context ());
 
 #ifdef USERPROG
@@ -306,8 +296,7 @@ thread_exit ()
      and schedule another process.  That process will destroy us
      when it calls thread_schedule_tail(). */
   intr_disable ();
-  list_remove (&cur->allelem);
-  list_remove (&cur->elem);
+  list_remove (&thread_current()->allelem);
   thread_current ()->status = THREAD_DYING;
   schedule ();
   NOT_REACHED ();
@@ -481,16 +470,22 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
 
-#ifdef USERPROG
-  list_init(&t->child_list);
-  list_init(&t->signal_list);
-  list_init(&t->fd_table);
-  t->current_file = NULL;
-#endif
-
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
+
+// for syscall memeber variables
+#ifdef USERPROG
+  for (int i=0; i<128; i++)
+    t->fd_list[i] = NULL;
+  t->parent = running_thread();
+  sema_init (&t->child_sema, 0);
+  sema_init (&t->memory_sema, 0);
+  sema_init (&t->load_thr, 0);
+  list_init (&(t->children));
+  list_push_back (&(running_thread()->children), &(t->children_elem));
+
+#endif
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -606,62 +601,3 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
-
-struct thread*
-get_thread_from_tid(tid_t tid) {
-  struct list_elem *e;
-
-  for (e = list_begin (&all_list); e != list_end (&all_list);
-       e = list_next (e))
-    {
-      struct thread *t = list_entry (e, struct thread, allelem);
-      if(t->tid == tid) return t;
-    }
-  return NULL;
-}
-
-struct mmf *
-init_mmf (int id, struct file *file, void *upage)
-{
-  struct mmf *mmf = (struct mmf *) malloc (sizeof *mmf);
-  
-  mmf->id = id;
-  mmf->file = file;
-  mmf->upage = upage;
-
-  off_t ofs;
-  int size = file_length (file);
-  struct hash *spt = &thread_current ()->spt;
-
-  for (ofs = 0; ofs < size; ofs += PGSIZE)
-    if (get_spte (spt, upage + ofs))
-      return NULL;
-
-  for (ofs = 0; ofs < size; ofs += PGSIZE)
-  {
-    uint32_t read_bytes = ofs + PGSIZE < size ? PGSIZE : size - ofs;
-    init_file_spte (spt, upage, file, ofs, read_bytes, PGSIZE - read_bytes, true);
-    upage += PGSIZE;
-  }
-
-  list_push_back (&thread_current ()->mmf_list, &mmf->mmf_list_elem);
-
-  return mmf;
-}
-
-struct mmf *
-get_mmf (int mapid)
-{
-  struct list *list = &thread_current ()->mmf_list;
-  struct list_elem *e;
-
-  for (e = list_begin (list); e != list_end (list); e = list_next (e))
-  {
-    struct mmf *f = list_entry (e, struct mmf, mmf_list_elem);
-
-    if (f->id == mapid)
-      return f;
-  }
-
-  return NULL;
-}
