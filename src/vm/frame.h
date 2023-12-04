@@ -7,7 +7,7 @@
 #include "threads/thread.h"
 #include "threads/malloc.h"
 
-struct fte
+struct ft_entry
   {
     void *kpage;
     void *upage;
@@ -17,9 +17,9 @@ struct fte
     struct list_elem list_elem;
   };
 
-void frame_init (void);
+void FrameTable_init(void);
 void *falloc_get_page(enum palloc_flags, void *);
-void  falloc_free_page (void *);
-struct fte *get_fte (void* );
+void  falloc_free_page(void *);
+struct ft_entry *get_frame_table_entry(void* );
 
 #endif

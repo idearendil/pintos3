@@ -130,7 +130,7 @@ main (void)
 #endif
 
   init_swap_valid_table ();
-  frame_init ();
+  FrameTable_init ();
 
   printf ("Boot complete.\n");
   
