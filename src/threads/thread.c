@@ -206,7 +206,7 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
-  init_SupplementalPageTable(&t->spt);
+  init_SupplementalPageTable(&t->sp_table);
 
   list_init (&t->mmf_list);
   t->mapid = 0;
@@ -620,7 +620,7 @@ init_mmf (int id, struct file *file, void *upage)
 
   off_t ofs;
   int size = file_length (file);
-  struct hash *spt = &thread_current ()->spt;
+  struct hash *spt = &thread_current()->sp_table;
 
   for (ofs = 0; ofs < size; ofs += PGSIZE)
     if (get_spt_entry(spt, upage + ofs))
@@ -633,7 +633,7 @@ init_mmf (int id, struct file *file, void *upage)
     upage += PGSIZE;
   }
 
-  list_push_back (&thread_current ()->mmf_list, &mmf->mmf_list_elem);
+  list_push_back (&thread_current ()->mmf_list, &mmf->list_elem);
 
   return mmf;
 }
@@ -646,7 +646,7 @@ get_mmf (int mapid)
 
   for (e = list_begin (list); e != list_end (list); e = list_next (e))
   {
-    struct mmf *f = list_entry (e, struct mmf, mmf_list_elem);
+    struct mmf *f = list_entry (e, struct mmf, list_elem);
 
     if (f->id == mapid)
       return f;

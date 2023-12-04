@@ -198,10 +198,9 @@ void process_exit(void)
   struct fd_elem *f_e;
   struct list_elem *e;
 
-  for (int i = 0; i < cur->mapid; i++)
-    munmap (i);
+  for (int i = 0; i < cur->mapid; i++)  munmap(i);
   
-  destroy_SupplementalPageTable(&cur->spt);
+  destroy_SupplementalPageTable(&cur->sp_table);
 
   if (cur->current_file != NULL) {
     file_allow_write(cur->current_file);
@@ -536,7 +535,7 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
     size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
     size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-    init_file_spt_entry(&thread_current()->spt, upage, file, ofs, page_read_bytes, page_zero_bytes, writable);
+    init_file_spt_entry(&thread_current()->sp_table, upage, file, ofs, page_read_bytes, page_zero_bytes, writable);
 
     /* Advance. */
     read_bytes -= page_read_bytes;
@@ -556,17 +555,17 @@ setup_stack(void **esp)
   uint8_t *kpage;
   bool success = false;
 
-  kpage = falloc_get_page (PAL_USER | PAL_ZERO, PHYS_BASE - PGSIZE);
+  kpage = falloc_get_page(PHYS_BASE - PGSIZE, PAL_USER | PAL_ZERO);
   if (kpage != NULL)
   {
     success = install_page(((uint8_t *)PHYS_BASE) - PGSIZE, kpage, true);
     if (success)
     {
-      init_frame_spt_entry(&thread_current ()->spt, PHYS_BASE - PGSIZE, kpage);
+      init_frame_spt_entry(&thread_current()->sp_table, PHYS_BASE - PGSIZE, kpage);
       *esp = PHYS_BASE; // initialize sp
     }
     else
-      falloc_free_page (kpage);
+      falloc_free_page(kpage);
   }
   return success;
 }

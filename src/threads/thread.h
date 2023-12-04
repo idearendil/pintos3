@@ -27,15 +27,6 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
-struct mmf 
-  {
-    int id;
-    struct file* file;
-    struct list_elem mmf_list_elem;
-    
-    void *upage;
-  };
-
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -92,6 +83,15 @@ struct mmf
    only because they are mutually exclusive: only a thread in the
    ready state is on the run queue, whereas only a thread in the
    blocked state is on a semaphore wait list. */
+
+struct mmf 
+  {
+    int id;
+    void *upage;
+    struct file* file;
+    struct list_elem list_elem;
+  };
+
 struct thread
   {
     /* Owned by thread.c. */
@@ -122,7 +122,7 @@ struct thread
     struct file *current_file;
 #endif
 
-    struct hash spt;
+    struct hash sp_table;
     void *esp;
 
     struct list mmf_list;

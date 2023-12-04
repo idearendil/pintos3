@@ -111,12 +111,12 @@ syscall_handler (struct intr_frame *f)
     case SYS_MMAP:
       if (!check_user_vaddr((int*)sp + 1)) exit(-1);
       if (!check_user_vaddr((int*)sp + 2)) exit(-1);
-      f->eax = mmap ((int)*(uint32_t *)(sp + 4), (void *)*(uint32_t *)(sp + 8));
+      f->eax = mmap((int)*(uint32_t *)(sp + 4), (void *)*(uint32_t *)(sp + 8));
       break;
 
     case SYS_MUNMAP:
       if (!check_user_vaddr((int*)sp + 1)) exit(-1);
-      munmap ((int)*(uint32_t *)(sp + 4));
+      munmap((int)*(uint32_t *)(sp + 4));
       break;
   }
   // thread_exit ();
@@ -354,7 +354,7 @@ munmap(int mapid)
   struct list_elem* e;
   for (e = list_begin(&t->mmf_list); e != list_end(&t->mmf_list); e = list_next(e))
   {
-    mmf = list_entry(e, struct mmf, mmf_list_elem);
+    mmf = list_entry(e, struct mmf, list_elem);
     if (mmf->id == mapid)
       break;
   }
@@ -365,14 +365,14 @@ munmap(int mapid)
   off_t max_length = file_length(mmf->file);
   off_t ofs = 0;
   while(ofs < max_length) {
-    struct spt_entry *temp_entry = get_spt_entry(&t->spt, mmf->upage + ofs);
+    struct spt_entry *temp_entry = get_spt_entry(&t->sp_table, mmf->upage + ofs);
 
     if(pagedir_is_dirty(t->pagedir, mmf->upage + ofs))  {
       void* kpage = pagedir_get_page(t->pagedir, mmf->upage + ofs);
       file_write_at(temp_entry->file, kpage, temp_entry->read_bytes, temp_entry->ofs);
     }
 
-    delete_a_page(&t->spt, temp_entry);
+    delete_a_page(&t->sp_table, temp_entry);
 
     ofs += PGSIZE;
   }

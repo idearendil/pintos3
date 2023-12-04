@@ -129,13 +129,8 @@ page_fault (struct intr_frame *f)
   bool write;        /* True: access was write, false: access was read. */
   bool user;         /* True: access by user, false: access by kernel. */
   void *fault_addr;  /* Fault address. */
-
-  void *upage;
-  void *esp;
-  struct hash *spt;
-  struct spt_entry *spe;
   
-  void *kpage;
+  void* kpage;
 
   /* Obtain faulting address, the virtual address that was
      accessed to cause the fault.  It may point to code or to
@@ -158,24 +153,25 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  upage = pg_round_down (fault_addr);
+  if(is_kernel_vaddr(fault_addr) || !not_present) exit(-1);
 
-  if (is_kernel_vaddr (fault_addr) || !not_present) 
-    exit (-1);
-
-  spt = &thread_current()->spt;
-  spe = get_spt_entry(spt, upage);
+  void* upage = pg_round_down(fault_addr);
+  struct hash* current_spt = &thread_current()->sp_table;
   
-  esp = user ? f->esp : thread_current()->esp;
-  if (esp - 32 <= fault_addr && PHYS_BASE - MAX_STACK_SIZE <= fault_addr) {
-    if (!get_spt_entry(spt, upage)) {
-      init_zero_spt_entry(spt, upage);
-    }
+  if(PHYS_BASE - (int32_t)upage <= MAX_STACK_SIZE && !get_spt_entry(current_spt, upage))  {
+   if(user) {
+      if((int32_t)(f->esp) - (int32_t)fault_addr <= 128) {
+         init_zero_spt_entry(current_spt, upage);
+      }
+   }
+   else {
+      if((int32_t)(thread_current()->esp) - (int32_t)fault_addr <= 128) {
+         init_zero_spt_entry(current_spt, upage);
+      }
+   }
   }
 
-  if (load_a_page(spt, upage)) {
-     return;
-  }
+  if(load_a_page(current_spt, upage)) return;
 
   exit (-1);
 

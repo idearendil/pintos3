@@ -92,7 +92,7 @@ load_a_page(struct hash* sp_hash_table, void* upage)
   if (e == NULL)  exit (-1);
 
   void* kpage;
-  kpage = falloc_get_page(PAL_USER, upage);
+  kpage = falloc_get_page(upage, PAL_USER);
   if (kpage == NULL)  exit (-1);
 
   bool flag = false;

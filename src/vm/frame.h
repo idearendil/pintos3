@@ -18,8 +18,8 @@ struct ft_entry
   };
 
 void FrameTable_init(void);
-void *falloc_get_page(enum palloc_flags, void *);
-void  falloc_free_page(void *);
-struct ft_entry *get_frame_table_entry(void* );
+void *falloc_get_page(void*, enum palloc_flags);
+void  falloc_free_page(void*);
+struct ft_entry *get_frame_table_entry(void*);
 
 #endif

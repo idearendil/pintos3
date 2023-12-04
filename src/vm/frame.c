@@ -15,7 +15,7 @@ FrameTable_init()
 }
 
 void *
-falloc_get_page(enum palloc_flags flags, void *upage)
+falloc_get_page(void *upage, enum palloc_flags flags)
 {
   lock_acquire(&ft_lock);
 
@@ -90,7 +90,7 @@ void evict() {
   } while(!pagedir_is_accessed(temp_entry->t->pagedir, temp_entry->upage));
 
   struct spt_entry *s;
-  s = get_spt_entry(&thread_current()->spt, temp_entry->upage);
+  s = get_spt_entry(&thread_current()->sp_table, temp_entry->upage);
   s->state = IN_SWAP;
   s->swap_id = swap_evict(temp_entry->kpage);
 
