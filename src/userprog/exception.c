@@ -133,7 +133,7 @@ page_fault (struct intr_frame *f)
   void *upage;
   void *esp;
   struct hash *spt;
-  struct spte *spe;
+  struct spt_entry *spe;
   
   void *kpage;
 
@@ -164,16 +164,16 @@ page_fault (struct intr_frame *f)
     exit (-1);
 
   spt = &thread_current()->spt;
-  spe = get_spte(spt, upage);
+  spe = get_spt_entry(spt, upage);
   
   esp = user ? f->esp : thread_current()->esp;
   if (esp - 32 <= fault_addr && PHYS_BASE - MAX_STACK_SIZE <= fault_addr) {
-    if (!get_spte(spt, upage)) {
-      init_zero_spte (spt, upage);
+    if (!get_spt_entry(spt, upage)) {
+      init_zero_spt_entry(spt, upage);
     }
   }
 
-  if (load_page (spt, upage)) {
+  if (load_a_page(spt, upage)) {
      return;
   }
 

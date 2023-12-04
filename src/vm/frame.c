@@ -89,9 +89,9 @@ void evict() {
     }
   } while(!pagedir_is_accessed(temp_entry->t->pagedir, temp_entry->upage));
 
-  struct spte *s;
-  s = get_spte(&thread_current()->spt, temp_entry->upage);
-  s->status = PAGE_SWAP;
+  struct spt_entry *s;
+  s = get_spt_entry(&thread_current()->spt, temp_entry->upage);
+  s->state = IN_SWAP;
   s->swap_id = swap_out(temp_entry->kpage);
 
   falloc_free_page(temp_entry->kpage);

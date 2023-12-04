@@ -5,35 +5,36 @@
 #include "filesys/file.h"
 #include "filesys/off_t.h"
 
-#define PAGE_ZERO 0
-#define PAGE_FRAME 1
-#define PAGE_FILE 2
-#define PAGE_SWAP 3
+#define ONLY_ZERO 0
+#define IN_FRAME 1
+#define IN_SWAP 2
+#define IN_FILE 3
 
-struct spte
+struct spt_entry
   {
     void *upage;
     void *kpage;
   
-    struct hash_elem hash_elem;
+    int state;
   
-    int status;
-  
-    struct file *file;  // File to read.
-    off_t ofs;  // File off set.
-    uint32_t read_bytes, zero_bytes;  // Bytes to read or to set to zero.
-    bool writable;  // whether the page is writable.
+    struct file *file;
+    uint32_t read_bytes;
+    uint32_t zero_bytes;
+    off_t ofs;
+    bool writable;
+    
     int swap_id;
+
+    struct hash_elem hash_elem;
   };
 
-void init_spt (struct hash *);
-void destroy_spt (struct hash *);
-void init_spte (struct hash *, void *, void *);
-void init_zero_spte (struct hash *, void *);
-void init_frame_spte (struct hash *, void *, void *);
-struct spte *init_file_spte (struct hash *, void *, struct file *, off_t, uint32_t, uint32_t, bool);
-bool load_page (struct hash *, void *);
-struct spte *get_spte (struct hash *, void *);
-void page_delete (struct hash *spt, struct spte *entry);
+void init_SupplementalPageTable(struct hash *);
+void destroy_SupplementalPageTable(struct hash *);
+void init_zero_spt_entry(struct hash *, void *);
+struct spt_entry *get_spt_entry(struct hash *, void *);
+void init_frame_spt_entry(struct hash *, void *, void *);
+struct spt_entry *init_file_spt_entry(struct hash *, void *, struct file *, off_t, uint32_t, uint32_t, bool);
+bool load_a_page(struct hash *, void *);
+void delete_a_page(struct hash *spt, struct spt_entry *entry);
 
 #endif

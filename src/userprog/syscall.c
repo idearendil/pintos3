@@ -389,13 +389,13 @@ sys_munmap (int mapid)
   off_t ofs;
   for (ofs = 0; ofs < file_length (mmf->file); ofs += PGSIZE)
   {
-    struct spte *entry = get_spte (&t->spt, upage);
+    struct spt_entry *entry = get_spt_entry(&t->spt, upage);
     if (pagedir_is_dirty (t->pagedir, upage))
     {
       void *kpage = pagedir_get_page (t->pagedir, upage);
       file_write_at (entry->file, kpage, entry->read_bytes, entry->ofs);
     }
-    page_delete (&t->spt, entry);
+    delete_a_page(&t->spt, entry);
     upage += PGSIZE;
   }
   list_remove(e);

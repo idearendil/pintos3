@@ -16,7 +16,7 @@ void init_swap_valid_table()
     lock_init(&swap_lock);
 }
 
-void swap_in(struct spte *page, void *kva)
+void swap_in(struct spt_entry *page, void *kva)
 {
     int i;
     int id = page->swap_id;

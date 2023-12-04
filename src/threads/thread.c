@@ -206,7 +206,7 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
-  init_spt (&t->spt);
+  init_SupplementalPageTable(&t->spt);
 
   list_init (&t->mmf_list);
   t->mapid = 0;
@@ -623,13 +623,13 @@ init_mmf (int id, struct file *file, void *upage)
   struct hash *spt = &thread_current ()->spt;
 
   for (ofs = 0; ofs < size; ofs += PGSIZE)
-    if (get_spte (spt, upage + ofs))
+    if (get_spt_entry(spt, upage + ofs))
       return NULL;
 
   for (ofs = 0; ofs < size; ofs += PGSIZE)
   {
     uint32_t read_bytes = ofs + PGSIZE < size ? PGSIZE : size - ofs;
-    init_file_spte (spt, upage, file, ofs, read_bytes, PGSIZE - read_bytes, true);
+    init_file_spt_entry(spt, upage, file, ofs, read_bytes, PGSIZE - read_bytes, true);
     upage += PGSIZE;
   }
 
