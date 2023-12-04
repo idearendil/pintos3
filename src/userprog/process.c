@@ -195,11 +195,24 @@ void process_exit(void)
 {
   struct thread *cur = thread_current();
   uint32_t *pd;
+  struct fd_elem *f_e;
+  struct list_elem *e;
 
   for (int i = 0; i < cur->mapid; i++)
     sys_munmap (i);
   
   destroy_spt (&cur->spt);
+
+  if (cur->current_file != NULL) {
+    file_allow_write(cur->current_file);
+    file_close(cur->current_file);
+  }
+
+  for (int i=3; i<128; i++) 
+  {
+    if (cur->fd_list[i] != NULL)
+      file_close(cur->fd_list[i]);
+  }
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -416,7 +429,7 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
 
 done:
   /* We arrive here whether the load is successful or not. */;
-  file_close(file);
+  t->current_file = file;
   return success;
 }
 

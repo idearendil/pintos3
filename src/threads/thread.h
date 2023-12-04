@@ -119,6 +119,7 @@ struct thread
 
     int exit_status;
     struct file *fd_list[128];
+    struct file *current_file;
 #endif
 
     struct hash spt;
