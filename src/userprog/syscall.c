@@ -13,8 +13,12 @@
 
 struct file *find_f (int fd); //to find file by fd
 static void syscall_handler (struct intr_frame *f);
-void check_user_vaddr (const void *vaddr); //check it is within user address
 struct lock file_lock;
+
+bool check_user_vaddr(void *addr)
+{
+  return addr < PHYS_BASE && addr != 0;
+}
 
 void
 syscall_init (void) 
@@ -23,18 +27,10 @@ syscall_init (void)
   lock_init (&file_lock);
 }
 
-bool validate_addr (void *addr)
-{
-  if (addr >= STACK_BOTTOM && addr < PHYS_BASE && addr != 0)
-    return true;
-
-  return false;
-}
-
 void
 syscall_handler (struct intr_frame *f) 
 {
-  if (!validate_addr (f->esp))
+  if (!check_user_vaddr (f->esp))
   {
     exit (-1);
   }
@@ -48,79 +44,79 @@ syscall_handler (struct intr_frame *f)
       break;
 
     case SYS_EXIT:
-      if (!validate_addr((int*)sp + 1)) { exit(-1); }
+      if (!check_user_vaddr((int*)sp + 1)) exit(-1);
       exit( *(uint32_t *)(sp + 4) );
       break;
 
     case SYS_EXEC:
-      if (!validate_addr((int*)sp + 1)) { exit(-1); }
+      if (!check_user_vaddr((int*)sp + 1)) exit(-1);
       f->eax = exec ( (const char *)*(uint32_t *)(sp + 4) );
       break;
 
     case SYS_WAIT:
-      if (!validate_addr((int*)sp + 1)) { exit(-1); }
+      if (!check_user_vaddr((int*)sp + 1)) exit(-1);
       f->eax = wait ( (pid_t *)*(uint32_t *)(sp + 4) );
       break;
 
     case SYS_CREATE:
-      if (!validate_addr((int*)sp + 1)) { exit(-1); }
+      if (!check_user_vaddr((int*)sp + 1)) exit(-1);
       f->eax = create ( (const char *)*(uint32_t *)(sp + 4),  (const char *)*(uint32_t *)(sp + 8) );
       break;
 
     case SYS_REMOVE:
-      if (!validate_addr((int*)sp + 1)) { exit(-1); }
+      if (!check_user_vaddr((int*)sp + 1)) exit(-1);
       f->eax = remove ( (const char *)*(uint32_t *)(sp + 4) );
       break;
 
     case SYS_OPEN:
-      if (!validate_addr((int*)sp + 1)) { exit(-1); }
+      if (!check_user_vaddr((int*)sp + 1)) exit(-1);
       f->eax = open ( (const char *)*(uint32_t *)(sp + 4) );
       break;
 
     case SYS_FILESIZE:
-      if (!validate_addr((int*)sp + 1)) { exit(-1); }
+      if (!check_user_vaddr((int*)sp + 1)) exit(-1);
       f->eax = filesize ( (int)*(uint32_t *)(sp + 4) );
       break;
 
     case SYS_READ:
-      if (!validate_addr((int*)sp + 1)) { exit(-1); }
-      if (!validate_addr((int*)sp + 2)) { exit(-1); }
-      if (!validate_addr((int*)sp + 3)) { exit(-1); }
+      if (!check_user_vaddr((int*)sp + 1)) exit(-1);
+      if (!check_user_vaddr((int*)sp + 2)) exit(-1);
+      if (!check_user_vaddr((int*)sp + 3)) exit(-1);
       f->eax = read ( (int)*(uint32_t *)(sp + 4), (void *)*(uint32_t *)(sp + 8), (unsigned)*((uint32_t *)(sp + 12)) );
       break;
 
     case SYS_WRITE:
-      if (!validate_addr((int*)sp + 1)) { exit(-1); }
-      if (!validate_addr((int*)sp + 2)) { exit(-1); }
-      if (!validate_addr((int*)sp + 3)) { exit(-1); }
+      if (!check_user_vaddr((int*)sp + 1)) exit(-1);
+      if (!check_user_vaddr((int*)sp + 2)) exit(-1);
+      if (!check_user_vaddr((int*)sp + 3)) exit(-1);
       f->eax = write( (int)*(uint32_t *)(sp + 4), (void *)*(uint32_t *)(sp + 8), (unsigned)*((uint32_t *)(sp + 12)) );
       break;
 
     case SYS_SEEK:
-      if (!validate_addr((int*)sp + 1)) { exit(-1); }
-      if (!validate_addr((int*)sp + 2)) { exit(-1); }
+      if (!check_user_vaddr((int*)sp + 1)) exit(-1);
+      if (!check_user_vaddr((int*)sp + 2)) exit(-1);
       seek ( (int)*(uint32_t *)(sp + 4), (unsigned)*((uint32_t *)(sp + 8)) );
       break;
 
     case SYS_TELL:
-      if (!validate_addr((int*)sp + 1)) { exit(-1); }
+      if (!check_user_vaddr((int*)sp + 1)) exit(-1);
       f->eax = tell ( (int)*(uint32_t *)(sp + 4) );
       break;
 
     case SYS_CLOSE:
-      if (!validate_addr((int*)sp + 1)) { exit(-1); }
+      if (!check_user_vaddr((int*)sp + 1)) exit(-1);
       close ( (int)*(uint32_t *)(sp + 4) );
       break;
     
     case SYS_MMAP:
-      if (!validate_addr((int*)sp + 1)) { exit(-1); }
-      if (!validate_addr((int*)sp + 2)) { exit(-1); }
-      f->eax = sys_mmap ((int)*(uint32_t *)(sp + 4), (void *)*(uint32_t *)(sp + 8));
+      if (!check_user_vaddr((int*)sp + 1)) exit(-1);
+      if (!check_user_vaddr((int*)sp + 2)) exit(-1);
+      f->eax = mmap ((int)*(uint32_t *)(sp + 4), (void *)*(uint32_t *)(sp + 8));
       break;
 
     case SYS_MUNMAP:
-      if (!validate_addr((int*)sp + 1)) { exit(-1); }
-      sys_munmap ((int)*(uint32_t *)(sp + 4));
+      if (!check_user_vaddr((int*)sp + 1)) exit(-1);
+      munmap ((int)*(uint32_t *)(sp + 4));
       break;
   }
   // thread_exit ();
@@ -161,7 +157,7 @@ wait (pid_t pid)
 bool
 create(const char *file, unsigned initial_size)
 {
-  if (file == NULL || !validate_addr(file))
+  if (file == NULL || !check_user_vaddr(file))
     exit(-1);
   return filesys_create (file, initial_size);
 }
@@ -169,7 +165,7 @@ create(const char *file, unsigned initial_size)
 bool
 remove (const char *file)
 {
-  if (file == NULL || !validate_addr(file))
+  if (file == NULL || !check_user_vaddr(file))
     exit(-1);
   return filesys_remove (file);
 }
@@ -178,7 +174,7 @@ int
 open (const char *file)
 {
   lock_acquire (&file_lock);
-  if (file == NULL || !validate_addr(file)) {
+  if (file == NULL || !check_user_vaddr(file)) {
     lock_release(&file_lock);
     exit(-1);
   }
@@ -219,7 +215,7 @@ filesize (int fd)
 int
 read (int fd, void *buffer, unsigned size)
 {
-  if (!validate_addr(buffer)) {
+  if (!check_user_vaddr(buffer)) {
     exit (-1);
   }
 
@@ -314,91 +310,79 @@ close (int fd)
   }
 }
 
-struct file
-*find_f (int fd)
-{
-  return (thread_current()->fd_list[fd]);
-}
-
-void
-check_user_vaddr (const void *vaddr)
-{
-  if (!is_user_vaddr (vaddr))
-    exit(-1);
-}
-
 int 
-sys_mmap (int fd, void *addr)
+mmap(int fd, void *addr)
 {
-  struct thread *t = thread_current ();
   struct file *f = find_f(fd);
   struct file *opened_f;
   struct mmf *mmf;
 
-  if (f == NULL)
-    return -1;
-  
-  if (addr == NULL || (int) addr % PGSIZE != 0)
-    return -1;
+  if (addr == NULL || (int)addr % PGSIZE != 0)  return -1;
+
+  if (f == NULL)  return -1;
 
   lock_acquire (&file_lock);
 
-  opened_f = file_reopen (f);
+  opened_f = file_reopen(f);
   if (opened_f == NULL)
   {
-    lock_release (&file_lock);
+    lock_release(&file_lock);
     return -1;
   }
 
-  mmf = init_mmf (t->mapid++, opened_f, addr);
+  mmf = init_mmf(thread_current()->mapid, opened_f, addr);
+  thread_current()->mapid++;
   if (mmf == NULL)
   {
-    lock_release (&file_lock);
+    lock_release(&file_lock);
     return -1;
   }
 
-  lock_release (&file_lock);
+  lock_release(&file_lock);
 
   return mmf->id;
 }
 
-int 
-sys_munmap (int mapid)
+void 
+munmap(int mapid)
 {
-  struct thread *t = thread_current ();
-  struct list_elem *e;
-  struct mmf *mmf;
-  void *upage;
+  struct thread* t = thread_current();
+  struct mmf* mmf;
 
-  if (mapid >= t->mapid)
-    return;
+  if(mapid >= t->mapid)  return;
 
-  for (e = list_begin (&t->mmf_list); e != list_end (&t->mmf_list); e = list_next (e))
+  struct list_elem* e;
+  for (e = list_begin(&t->mmf_list); e != list_end(&t->mmf_list); e = list_next(e))
   {
-    mmf = list_entry (e, struct mmf, mmf_list_elem);
+    mmf = list_entry(e, struct mmf, mmf_list_elem);
     if (mmf->id == mapid)
       break;
   }
-  if (e == list_end (&t->mmf_list))
-    return;
+  if (e == list_end(&t->mmf_list))  return;
 
-  upage = mmf->upage;
-
-  lock_acquire (&file_lock);
+  lock_acquire(&file_lock);
   
-  off_t ofs;
-  for (ofs = 0; ofs < file_length (mmf->file); ofs += PGSIZE)
-  {
-    struct spt_entry *entry = get_spt_entry(&t->spt, upage);
-    if (pagedir_is_dirty (t->pagedir, upage))
-    {
-      void *kpage = pagedir_get_page (t->pagedir, upage);
-      file_write_at (entry->file, kpage, entry->read_bytes, entry->ofs);
+  off_t max_length = file_length(mmf->file);
+  off_t ofs = 0;
+  while(ofs < max_length) {
+    struct spt_entry *temp_entry = get_spt_entry(&t->spt, mmf->upage + ofs);
+
+    if(pagedir_is_dirty(t->pagedir, mmf->upage + ofs))  {
+      void* kpage = pagedir_get_page(t->pagedir, mmf->upage + ofs);
+      file_write_at(temp_entry->file, kpage, temp_entry->read_bytes, temp_entry->ofs);
     }
-    delete_a_page(&t->spt, entry);
-    upage += PGSIZE;
+
+    delete_a_page(&t->spt, temp_entry);
+
+    ofs += PGSIZE;
   }
   list_remove(e);
 
-  lock_release (&file_lock);
+  lock_release(&file_lock);
+}
+
+struct file
+*find_f (int fd)
+{
+  return (thread_current()->fd_list[fd]);
 }

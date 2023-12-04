@@ -199,7 +199,7 @@ void process_exit(void)
   struct list_elem *e;
 
   for (int i = 0; i < cur->mapid; i++)
-    sys_munmap (i);
+    munmap (i);
   
   destroy_SupplementalPageTable(&cur->spt);
 
