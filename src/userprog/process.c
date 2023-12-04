@@ -198,7 +198,7 @@ void process_exit(void)
   struct fd_elem *f_e;
   struct list_elem *e;
 
-  for (int i = 0; i < cur->mapid; i++)  munmap(i);
+  for (int i = 0; i < cur->map_cnt; i++)  munmap(i);
   
   destroy_SupplementalPageTable(&cur->sp_table);
 

@@ -123,10 +123,9 @@ struct thread
 #endif
 
     struct hash sp_table;
+    struct list mmf_lst;
+    int map_cnt;
     void *esp;
-
-    struct list mmf_list;
-    int mapid;
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */

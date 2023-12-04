@@ -330,8 +330,8 @@ mmap(int fd, void *addr)
     return -1;
   }
 
-  mmf = init_mmf(thread_current()->mapid, opened_f, addr);
-  thread_current()->mapid++;
+  mmf = init_mmf(thread_current()->map_cnt, opened_f, addr);
+  thread_current()->map_cnt++;
   if (mmf == NULL)
   {
     lock_release(&file_lock);
@@ -349,16 +349,16 @@ munmap(int mapid)
   struct thread* t = thread_current();
   struct mmf* mmf;
 
-  if(mapid >= t->mapid)  return;
+  if(mapid >= t->map_cnt)  return;
 
   struct list_elem* e;
-  for (e = list_begin(&t->mmf_list); e != list_end(&t->mmf_list); e = list_next(e))
+  for (e = list_begin(&t->mmf_lst); e != list_end(&t->mmf_lst); e = list_next(e))
   {
     mmf = list_entry(e, struct mmf, list_elem);
     if (mmf->id == mapid)
       break;
   }
-  if (e == list_end(&t->mmf_list))  return;
+  if (e == list_end(&t->mmf_lst))  return;
 
   lock_acquire(&file_lock);
   

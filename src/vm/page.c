@@ -64,7 +64,7 @@ init_frame_spt_entry(struct hash* sp_hash_table, void* upage, void* kpage)
 }
 
 struct spt_entry*
-init_file_spt_entry(struct hash* sp_hash_table, void* upage, struct file* file, off_t ofs, uint32_t read_bytes, uint32_t zero_bytes, bool writable)
+init_file_spt_entry(struct hash* sp_hash_table, void* upage, struct file* file, off_t ofs, uint32_t read_bytes, uint32_t padding, bool writable)
 {
   struct spt_entry *e;
   
@@ -76,7 +76,7 @@ init_file_spt_entry(struct hash* sp_hash_table, void* upage, struct file* file, 
   e->file = file;
   e->ofs = ofs;
   e->read_bytes = read_bytes;
-  e->zero_bytes = zero_bytes;
+  e->padding = padding;
   e->writable = writable;
   
   hash_insert(sp_hash_table, &e->hash_elem);
@@ -116,7 +116,7 @@ load_a_page(struct hash* sp_hash_table, void* upage)
       lock_release (&file_lock);
       exit (-1);
     }
-    memset (kpage + e->read_bytes, 0, e->zero_bytes);
+    memset (kpage + e->read_bytes, 0, e->padding);
     if(flag) lock_release(&file_lock);
     break;
   default:

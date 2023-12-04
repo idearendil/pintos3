@@ -208,8 +208,8 @@ thread_create (const char *name, int priority,
 
   init_SupplementalPageTable(&t->sp_table);
 
-  list_init (&t->mmf_list);
-  t->mapid = 0;
+  list_init(&t->mmf_lst);
+  t->map_cnt = 0;
 
   /* Add to run queue. */
   thread_unblock (t);
@@ -610,46 +610,45 @@ allocate_tid (void)
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
 struct mmf *
-init_mmf (int id, struct file *file, void *upage)
+init_mmf(int id, struct file *file, void *upage)
 {
-  struct mmf *mmf = (struct mmf *) malloc (sizeof *mmf);
+  struct mmf *mmf = (struct mmf *) malloc(sizeof *mmf);
   
   mmf->id = id;
-  mmf->file = file;
   mmf->upage = upage;
+  mmf->file = file;
 
-  off_t ofs;
-  int size = file_length (file);
-  struct hash *spt = &thread_current()->sp_table;
+  int max_size = file_length(file);
 
-  for (ofs = 0; ofs < size; ofs += PGSIZE)
-    if (get_spt_entry(spt, upage + ofs))
-      return NULL;
-
-  for (ofs = 0; ofs < size; ofs += PGSIZE)
-  {
-    uint32_t read_bytes = ofs + PGSIZE < size ? PGSIZE : size - ofs;
-    init_file_spt_entry(spt, upage, file, ofs, read_bytes, PGSIZE - read_bytes, true);
-    upage += PGSIZE;
+  for (off_t ofs = 0; ofs < max_size; ofs += PGSIZE)  {
+    if (get_spt_entry(&thread_current()->sp_table, upage + ofs))  return NULL;
   }
 
-  list_push_back (&thread_current ()->mmf_list, &mmf->list_elem);
+  for (off_t ofs = 0; ofs < max_size; ofs += PGSIZE)
+  {
+    if(ofs + PGSIZE < max_size) {
+      init_file_spt_entry(&thread_current()->sp_table, upage, file, ofs, PGSIZE, 0, true);
+      upage += PGSIZE;
+    }
+    else {
+      init_file_spt_entry(&thread_current()->sp_table, upage, file, ofs, max_size - ofs, PGSIZE - (max_size - ofs), true);
+      upage += PGSIZE;
+    }
+  }
+
+  list_push_back(&thread_current ()->mmf_lst, &mmf->list_elem);
 
   return mmf;
 }
 
-struct mmf *
-get_mmf (int mapid)
+struct mmf*
+get_mmf(int mapid)
 {
-  struct list *list = &thread_current ()->mmf_list;
-  struct list_elem *e;
-
-  for (e = list_begin (list); e != list_end (list); e = list_next (e))
-  {
-    struct mmf *f = list_entry (e, struct mmf, list_elem);
-
-    if (f->id == mapid)
-      return f;
+  struct list *temp_list = &thread_current()->mmf_lst;
+  struct mmf* f;
+  for (struct list_elem* e = list_begin (temp_list); e != list_end (temp_list); e = list_next (e))  {
+    f = list_entry(e, struct mmf, list_elem);
+    if (f->id == mapid) return f;
   }
 
   return NULL;

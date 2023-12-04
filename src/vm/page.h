@@ -19,7 +19,7 @@ struct spt_entry
   
     struct file *file;
     uint32_t read_bytes;
-    uint32_t zero_bytes;
+    uint32_t padding;
     off_t ofs;
     bool writable;
     
