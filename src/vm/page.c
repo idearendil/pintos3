@@ -103,7 +103,7 @@ load_a_page(struct hash* sp_hash_table, void* upage)
     memset (kpage, 0, PGSIZE);
     break;
   case IN_SWAP:
-    swap_in(e, kpage);
+    swap_load(e, kpage);
     break;
   case IN_FILE:
     if(!lock_held_by_current_thread(&file_lock))  {

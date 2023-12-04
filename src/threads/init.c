@@ -129,8 +129,8 @@ main (void)
   filesys_init (format_filesys);
 #endif
 
-  init_swap_valid_table ();
-  FrameTable_init ();
+  init_SwapTable();
+  FrameTable_init();
 
   printf ("Boot complete.\n");
   

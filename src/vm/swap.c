@@ -1,65 +1,45 @@
 #include "vm/swap.h"
 #include "threads/synch.h"
 
-#define SECTOR_NUM (PGSIZE / BLOCK_SECTOR_SIZE)
+#define SECTORS_IN_PAGE (PGSIZE/BLOCK_SECTOR_SIZE)
 
-static struct bitmap *swap_valid_table;
-static struct block *swap_disk;
 static struct lock swap_lock;
+static struct bitmap *SwapTable;
+static struct block *swap_disk;
 
-void init_swap_valid_table()
+void init_SwapTable()
 {
-    swap_disk = block_get_role(BLOCK_SWAP);
-    swap_valid_table = bitmap_create(block_size(swap_disk) / SECTOR_NUM);
-
-    bitmap_set_all(swap_valid_table, true);
     lock_init(&swap_lock);
+
+    swap_disk = block_get_role(BLOCK_SWAP);
+    SwapTable = bitmap_create(block_size(swap_disk) / SECTORS_IN_PAGE);
+
+    bitmap_set_all(SwapTable, true);
 }
 
-void swap_in(struct spt_entry *page, void *kva)
+void swap_load(struct spt_entry *spt_entry, void *kpage)
 {
-    int i;
-    int id = page->swap_id;
-
     lock_acquire(&swap_lock);
-    {
-        if (id > bitmap_size(swap_valid_table) || id < 0)
-        {
-            exit(-1);
-        }
 
-        if (bitmap_test(swap_valid_table, id) == true)
-        {
-            /* This swapping slot is empty. */
-            exit(-1);
-        }
+    if (spt_entry->swap_id >= bitmap_size(SwapTable) || spt_entry->swap_id < 0)    exit(-1);
+    if (bitmap_test(SwapTable, spt_entry->swap_id) == true)  exit(-1);
 
-        bitmap_set(swap_valid_table, id, true);
-    }
+    bitmap_set(SwapTable, spt_entry->swap_id, true);
 
     lock_release(&swap_lock);
 
-    for (i = 0; i < SECTOR_NUM; i++)
-    {
-        block_read(swap_disk, id * SECTOR_NUM + i, kva + (i * BLOCK_SECTOR_SIZE));
-    }
+    for(int i = 0; i < SECTORS_IN_PAGE; i++) block_read(swap_disk, spt_entry->swap_id * SECTORS_IN_PAGE + i, kpage + (i * BLOCK_SECTOR_SIZE));
 }
 
-int swap_out(void *kva)
+int swap_evict(void *kpage)
 {
-    int i;
     int id;
 
     lock_acquire(&swap_lock);
-    {
-        id = bitmap_scan_and_flip(swap_valid_table, 0, 1, true);
-    }
+    id = bitmap_scan_and_flip(SwapTable, 0, 1, true);
     lock_release(&swap_lock);
 
-    for (i = 0; i < SECTOR_NUM; ++i)
-    {
-        block_write(swap_disk, id * SECTOR_NUM + i, kva + (BLOCK_SECTOR_SIZE * i));
-    }
+    for(int i = 0; i < SECTORS_IN_PAGE; ++i)    block_write(swap_disk, id * SECTORS_IN_PAGE + i, kpage + (BLOCK_SECTOR_SIZE * i));
 
     return id;
 }

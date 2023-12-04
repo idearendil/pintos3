@@ -6,8 +6,8 @@
 #include "threads/vaddr.h"
 #include "vm/page.h"
 
-void init_swap_valid_table();
-void swap_in(struct spt_entry *page, void *kva);
-int swap_out(void *kva);
+void init_SwapTable();
+void swap_load(struct spt_entry *page, void *kva);
+int swap_evict(void *kva);
 
 #endif
