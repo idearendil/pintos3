@@ -1,6 +1,9 @@
 #ifndef USERPROG_SYSCALL_H
 #define USERPROG_SYSCALL_H
 
+#define PHYS_BASE 0xc0000000
+#define STACK_BOTTOM 0x8048000
+
 #include "lib/user/syscall.h"
 
 struct file 

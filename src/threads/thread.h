@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include "threads/synch.h"
 #include "filesys/file.h"
+#include <hash.h>
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -25,6 +26,15 @@ typedef int tid_t;
 #define PRI_MIN 0                       /* Lowest priority. */
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
+
+struct mmf 
+  {
+    int id;
+    struct file* file;
+    struct list_elem mmf_list_elem;
+    
+    void *upage;
+  };
 
 /* A kernel thread or user process.
 
@@ -110,6 +120,12 @@ struct thread
     int exit_status;
     struct file *fd_list[128];
 #endif
+
+    struct hash spt;
+    void *esp;
+
+    struct list mmf_list;
+    int mapid;
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */

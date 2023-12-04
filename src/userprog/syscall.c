@@ -9,20 +9,35 @@
 #include "filesys/file.h"
 #include "filesys/off_t.h"
 #include "devices/block.h"
+#include "vm/page.h"
 
 struct file *find_f (int fd); //to find file by fd
 static void syscall_handler (struct intr_frame *f);
 void check_user_vaddr (const void *vaddr); //check it is within user address
+struct lock file_lock;
 
 void
 syscall_init (void) 
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+  lock_init (&file_lock);
+}
+
+bool validate_addr (void *addr)
+{
+  if (addr >= STACK_BOTTOM && addr < PHYS_BASE && addr != 0)
+    return true;
+
+  return false;
 }
 
 void
 syscall_handler (struct intr_frame *f) 
 {
+  if (!validate_addr (f->esp))
+  {
+    exit (-1);
+  }
   void *sp = f->esp;
   //arguemnt require ==> change to right data type
   //if return value ==> to eax
@@ -33,63 +48,79 @@ syscall_handler (struct intr_frame *f)
       break;
 
     case SYS_EXIT:
-      check_user_vaddr (sp + 4);
+      if (!validate_addr((int*)sp + 1)) { exit(-1); }
       exit( *(uint32_t *)(sp + 4) );
       break;
 
     case SYS_EXEC:
-      check_user_vaddr (sp + 4);
+      if (!validate_addr((int*)sp + 1)) { exit(-1); }
       f->eax = exec ( (const char *)*(uint32_t *)(sp + 4) );
       break;
 
     case SYS_WAIT:
-      check_user_vaddr (sp + 4);
+      if (!validate_addr((int*)sp + 1)) { exit(-1); }
       f->eax = wait ( (pid_t *)*(uint32_t *)(sp + 4) );
       break;
 
     case SYS_CREATE:
-      check_user_vaddr (sp + 4);
+      if (!validate_addr((int*)sp + 1)) { exit(-1); }
       f->eax = create ( (const char *)*(uint32_t *)(sp + 4),  (const char *)*(uint32_t *)(sp + 8) );
       break;
 
     case SYS_REMOVE:
-      check_user_vaddr (sp + 4);
+      if (!validate_addr((int*)sp + 1)) { exit(-1); }
       f->eax = remove ( (const char *)*(uint32_t *)(sp + 4) );
       break;
 
     case SYS_OPEN:
-      check_user_vaddr (sp + 4);
+      if (!validate_addr((int*)sp + 1)) { exit(-1); }
       f->eax = open ( (const char *)*(uint32_t *)(sp + 4) );
       break;
 
     case SYS_FILESIZE:
-      check_user_vaddr (sp + 4);
+      if (!validate_addr((int*)sp + 1)) { exit(-1); }
       f->eax = filesize ( (int)*(uint32_t *)(sp + 4) );
       break;
 
     case SYS_READ:
-      check_user_vaddr (sp + 4);
+      if (!validate_addr((int*)sp + 1)) { exit(-1); }
+      if (!validate_addr((int*)sp + 2)) { exit(-1); }
+      if (!validate_addr((int*)sp + 3)) { exit(-1); }
       f->eax = read ( (int)*(uint32_t *)(sp + 4), (void *)*(uint32_t *)(sp + 8), (unsigned)*((uint32_t *)(sp + 12)) );
       break;
 
     case SYS_WRITE:
-      check_user_vaddr (sp + 4);
+      if (!validate_addr((int*)sp + 1)) { exit(-1); }
+      if (!validate_addr((int*)sp + 2)) { exit(-1); }
+      if (!validate_addr((int*)sp + 3)) { exit(-1); }
       f->eax = write( (int)*(uint32_t *)(sp + 4), (void *)*(uint32_t *)(sp + 8), (unsigned)*((uint32_t *)(sp + 12)) );
       break;
 
     case SYS_SEEK:
-      check_user_vaddr (sp + 4);
+      if (!validate_addr((int*)sp + 1)) { exit(-1); }
+      if (!validate_addr((int*)sp + 2)) { exit(-1); }
       seek ( (int)*(uint32_t *)(sp + 4), (unsigned)*((uint32_t *)(sp + 8)) );
       break;
 
     case SYS_TELL:
-      check_user_vaddr (sp + 4);
+      if (!validate_addr((int*)sp + 1)) { exit(-1); }
       f->eax = tell ( (int)*(uint32_t *)(sp + 4) );
       break;
 
     case SYS_CLOSE:
-      check_user_vaddr (sp + 4);
+      if (!validate_addr((int*)sp + 1)) { exit(-1); }
       close ( (int)*(uint32_t *)(sp + 4) );
+      break;
+    
+    case SYS_MMAP:
+      if (!validate_addr((int*)sp + 1)) { exit(-1); }
+      if (!validate_addr((int*)sp + 2)) { exit(-1); }
+      f->eax = sys_mmap ((int)*(uint32_t *)(sp + 4), (void *)*(uint32_t *)(sp + 8));
+      break;
+
+    case SYS_MUNMAP:
+      if (!validate_addr((int*)sp + 1)) { exit(-1); }
+      sys_munmap ((int)*(uint32_t *)(sp + 4));
       break;
   }
   // thread_exit ();
@@ -130,7 +161,7 @@ wait (pid_t pid)
 bool
 create(const char *file, unsigned initial_size)
 {
-  if (file == NULL)
+  if (file == NULL || !validate_addr(file))
     exit(-1);
   return filesys_create (file, initial_size);
 }
@@ -138,7 +169,7 @@ create(const char *file, unsigned initial_size)
 bool
 remove (const char *file)
 {
-  if (file == NULL)
+  if (file == NULL || !validate_addr(file))
     exit(-1);
   return filesys_remove (file);
 }
@@ -146,12 +177,16 @@ remove (const char *file)
 int
 open (const char *file)
 {
-  if (file == NULL)
+  lock_acquire (&file_lock);
+  if (file == NULL || !validate_addr(file)) {
+    lock_release(&file_lock);
     exit(-1);
-  check_user_vaddr (file);
+  }
   struct file *return_file = filesys_open (file);
-  if (return_file == NULL)
+  if (return_file == NULL)  {
+    lock_release (&file_lock);
     return -1;
+  }
   else
   {
     for (int i=3; i<128; i++)
@@ -162,10 +197,12 @@ open (const char *file)
           file_deny_write (return_file);
 
         thread_current()->fd_list[i] = return_file;
+        lock_release (&file_lock);
         return i;
       }
     }
   }
+  lock_release (&file_lock);
   return -1;
 }
 
@@ -182,7 +219,12 @@ filesize (int fd)
 int
 read (int fd, void *buffer, unsigned size)
 {
-  check_user_vaddr (buffer);
+  if (!validate_addr(buffer)) {
+    exit (-1);
+  }
+
+  int bytes_read;
+
   if (fd == 0) //STDIN
   {
     int i;
@@ -199,7 +241,10 @@ read (int fd, void *buffer, unsigned size)
       exit(-1);
     else
     {
-      return file_read (f, buffer, size);
+      lock_acquire (&file_lock);
+      bytes_read = file_read (f, buffer, size);
+      lock_release (&file_lock);
+      return bytes_read;
     }
   }
 }
@@ -211,11 +256,14 @@ write (int fd, const void *buffer, unsigned size)
   check_user_vaddr (buffer);
   if (fd == 1) //STDOUT
   {
+    lock_acquire (&file_lock);
     putbuf (buffer, size);
+    lock_release (&file_lock);
     return size;
   }
   else
   {
+    int bytes_written;
     struct file *f = find_f (fd);
     if (f == NULL)
     {
@@ -225,7 +273,11 @@ write (int fd, const void *buffer, unsigned size)
     {
       file_deny_write (f);
     }
-    return file_write (f, buffer, size);
+    lock_acquire (&file_lock);
+    bytes_written = file_write (f, buffer, size);
+    lock_release (&file_lock);
+
+    return bytes_written;
   }
 }
 
@@ -273,4 +325,80 @@ check_user_vaddr (const void *vaddr)
 {
   if (!is_user_vaddr (vaddr))
     exit(-1);
+}
+
+int 
+sys_mmap (int fd, void *addr)
+{
+  struct thread *t = thread_current ();
+  struct file *f = find_f(fd);
+  struct file *opened_f;
+  struct mmf *mmf;
+
+  if (f == NULL)
+    return -1;
+  
+  if (addr == NULL || (int) addr % PGSIZE != 0)
+    return -1;
+
+  lock_acquire (&file_lock);
+
+  opened_f = file_reopen (f);
+  if (opened_f == NULL)
+  {
+    lock_release (&file_lock);
+    return -1;
+  }
+
+  mmf = init_mmf (t->mapid++, opened_f, addr);
+  if (mmf == NULL)
+  {
+    lock_release (&file_lock);
+    return -1;
+  }
+
+  lock_release (&file_lock);
+
+  return mmf->id;
+}
+
+int 
+sys_munmap (int mapid)
+{
+  struct thread *t = thread_current ();
+  struct list_elem *e;
+  struct mmf *mmf;
+  void *upage;
+
+  if (mapid >= t->mapid)
+    return;
+
+  for (e = list_begin (&t->mmf_list); e != list_end (&t->mmf_list); e = list_next (e))
+  {
+    mmf = list_entry (e, struct mmf, mmf_list_elem);
+    if (mmf->id == mapid)
+      break;
+  }
+  if (e == list_end (&t->mmf_list))
+    return;
+
+  upage = mmf->upage;
+
+  lock_acquire (&file_lock);
+  
+  off_t ofs;
+  for (ofs = 0; ofs < file_length (mmf->file); ofs += PGSIZE)
+  {
+    struct spte *entry = get_spte (&t->spt, upage);
+    if (pagedir_is_dirty (t->pagedir, upage))
+    {
+      void *kpage = pagedir_get_page (t->pagedir, upage);
+      file_write_at (entry->file, kpage, entry->read_bytes, entry->ofs);
+    }
+    page_delete (&t->spt, entry);
+    upage += PGSIZE;
+  }
+  list_remove(e);
+
+  lock_release (&file_lock);
 }
